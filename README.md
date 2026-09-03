@@ -31,7 +31,7 @@ The values already match the challenge (`challenge` / `root` / `DataEngineer_202
 
 Note: `POSTGRES_PORT` is set to `5440` instead of `5432`, because my machine
 already had PostgreSQL running on 5432 and 5433. If 5440 is also used on your
-machine, just change it in `.env`.
+machine, you can just change it in `.env`.
 
 ## How to run with Airflow
 
@@ -83,6 +83,8 @@ docker compose exec -T postgres psql -U root -d challenge < sql/create_cat_reg.s
 ```
 
 ## How to check the result
+I used database client (dbeaver)
+But you can also check the result with the following commands
 
 ```bash
 docker compose exec postgres psql -U root -d challenge -c 'SELECT COUNT(*) FROM "food sales";'
@@ -116,42 +118,28 @@ All settings are in the `.env` file, nothing is hard-coded:
 | SHEET_NAME | FoodSales | sheet to read |
 | TARGET_TABLE | food sales | table to load into |
 
-## Project structure
 
-```
-.
-├── docker-compose.yml      # postgres + airflow
-├── .env / .env.example     # configuration
-├── requirements.txt
-├── data/
-│   └── de_challenge_data.xlsx
-├── src/
-│   ├── config.py           # reads the .env values
-│   ├── extract.py          # read the Excel file and clean it
-│   ├── load.py             # load the data into PostgreSQL
-│   └── pipeline.py         # runs extract then load
-├── sql/
-│   └── create_cat_reg.sql  # creates the cat_reg table
-└── dags/
-    └── food_sales_dag.py   # Airflow DAG (ingest -> build_cat_reg), runs daily
-```
+## Notes:
+- The 'FoodSales' sheet have 2 tables in one sheet. Each one have their own header and a
+  year label seperated by an empty row. From basic examining in the file, I found that 
+  the 2nd half of the sheet's year title is 2022 but the data shown here is in 2023. 
 
-## Notes
+- Due to this, `extract.py` reads the sheet with no header and keep only the rows 
+  where the 1st column follow the pattern: (`ID` + numbers) so that it will skips all the 
+  junk row (headers / label / blank rows).
 
-- The `FoodSales` sheet has two tables stacked on top of each other, each with its
-  own header row and a year label, split by an empty row. The second year label
-  says `2022` but the data under it is actually 2023. Because of this, `extract.py`
-  reads the sheet with no header and keeps only the rows where the first column
-  looks like an ID (`ID` + numbers), which skips all the header/label/blank rows.
-- The data is only ~244 rows, so pandas is enough. Spark would be overkill here.
+- Since the data have only 244 rows, pandas is used because of its lightweight
+
 - The pipeline can be run multiple times without breaking: `load.py` uses
   `if_exists="replace"` and the SQL script uses `DROP TABLE IF EXISTS`.
+
 - Airflow is set up with `SequentialExecutor` and `standalone` mode to keep it
-  simple (no Celery or Redis, which aren't needed for this).
+  simple.
+
 - `cat_reg` values are rounded to whole numbers to match the challenge document.
 
 ## Things I would improve with more time
 
 - Use a custom Dockerfile for Airflow instead of installing libraries on startup.
 - Add a check for row count / nulls before loading.
-- Add unit tests for `extract.py`.
+
